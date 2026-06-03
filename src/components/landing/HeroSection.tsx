@@ -317,9 +317,9 @@ function ParticleVortex({ progress }: { progress: any }) {
       const p = Math.max(0, (lastProgress - 0.6) / 0.35)
       if (p <= 0) { animRef.current = requestAnimationFrame(draw); return }
 
-      ctx.clearRect(0, 0, canvas.width, canvas!.height)
+      ctx.clearRect(0, 0, canvas!.width, canvas!.height)
       ctx.fillStyle = `rgba(4,4,10,${p * 0.7})`
-      ctx.fillRect(0, 0, canvas.width, canvas!.height)
+      ctx.fillRect(0, 0, canvas!.width, canvas!.height)
 
       particlesRef.current.forEach(pt => {
         pt.angle += pt.speed * (1 + p * 4)
