@@ -291,7 +291,7 @@ function ImplosionOverlay({ progress }: { progress: any }) {
 function ParticleVortex({ progress }: { progress: any }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const particlesRef = useRef<Array<{ x: number; y: number; vx: number; vy: number; size: number; color: string; angle: number; radius: number; speed: number }>>([])
-  const animRef = useRef<number>()
+  const animRef = useRef<number>(0)
 
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return
