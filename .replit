@@ -1,0 +1,75 @@
+modules = ["nodejs-20", "web"]
+[agent]
+expertMode = true
+integrations = ["javascript_stripe:1.0.0", "javascript_openai:1.0.0"]
+
+[nix]
+channel = "stable-25_05"
+packages = ["imagemagick"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Frontend"
+
+[[workflows.workflow]]
+name = "Frontend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 33545
+externalPort = 3003
+
+[[ports]]
+localPort = 35625
+externalPort = 5173
+exposeLocalhost = true
+
+[[ports]]
+localPort = 37031
+externalPort = 5000
+
+[[ports]]
+localPort = 37033
+externalPort = 3002
+
+[[ports]]
+localPort = 41795
+externalPort = 6000
+exposeLocalhost = true
+
+[[ports]]
+localPort = 41989
+externalPort = 3000
+
+[[ports]]
+localPort = 42753
+externalPort = 4200
+
+[[ports]]
+localPort = 43751
+externalPort = 3001
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["npm", "run", "build"]
+run = ["npm", "start"]

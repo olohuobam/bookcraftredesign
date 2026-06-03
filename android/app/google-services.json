@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "323896755758",
+    "project_id": "bookcraft-1bcc7",
+    "storage_bucket": "bookcraft-1bcc7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:323896755758:android:16ab37aa358afa34bac1bf",
+        "android_client_info": {
+          "package_name": "com.bookcraft.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDCGGP5unRFrDdaa4X0-aBQ3FASxGgQb_A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

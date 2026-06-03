@@ -1,0 +1,21 @@
+-- Migration: Public Preview Access
+-- Issue #174 - Shareable Book Preview Link
+--
+-- The /preview/[book-id] page fetches book data using the Supabase service-role
+-- key on the server side (API route + Server Component), which already bypasses
+-- RLS. No additional RLS policy is required for the current implementation.
+--
+-- This migration documents the decision and reserves a future anon-role policy
+-- should we ever want to support direct Supabase client queries from the browser
+-- for the preview page.
+--
+-- Future policy (not enabled yet):
+-- CREATE POLICY "Public preview read-only"
+--   ON public.books
+--   FOR SELECT
+--   TO anon
+--   USING (status NOT IN ('draft', 'generating'));
+--
+-- To enable it, uncomment and apply the policy above and ensure the anon key
+-- only exposes the safe columns (title, description, genre, author, cover_image,
+-- chapters_json, content, status, book_type, created_at).

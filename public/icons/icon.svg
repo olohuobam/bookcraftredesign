@@ -1,0 +1,35 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="256" cy="256" r="256" fill="url(#gradient)"/>
+
+  <!-- Book Icon -->
+  <g transform="translate(128, 128)">
+    <!-- Book Pages -->
+    <rect x="20" y="30" width="216" height="196" rx="8" fill="#ffffff" opacity="0.95"/>
+
+    <!-- Book Spine -->
+    <rect x="20" y="30" width="30" height="196" rx="8" fill="#1e40af" opacity="0.3"/>
+
+    <!-- Book Cover Details -->
+    <rect x="60" y="60" width="160" height="8" rx="4" fill="#2563eb" opacity="0.5"/>
+    <rect x="60" y="80" width="140" height="6" rx="3" fill="#2563eb" opacity="0.4"/>
+    <rect x="60" y="95" width="120" height="6" rx="3" fill="#2563eb" opacity="0.3"/>
+
+    <!-- AI Sparkle/Star -->
+    <circle cx="200" cy="160" r="16" fill="#fbbf24" opacity="0.9"/>
+    <circle cx="200" cy="160" r="12" fill="#ffffff"/>
+
+    <!-- Star rays -->
+    <path d="M200 140 L200 180 M180 160 L220 160 M186 146 L214 174 M214 146 L186 174"
+          stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- Gradient Definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#60a5fa;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+</svg>

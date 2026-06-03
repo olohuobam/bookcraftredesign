@@ -1,0 +1,189 @@
+/* Mobile Optimizations for Print Orders */
+
+/* Touch-friendly buttons (minimum 44x44px as per Apple/Google guidelines) */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.75rem 1rem;
+}
+
+/* Larger touch targets on mobile */
+@media (max-width: 768px) {
+  .touch-target {
+    min-height: 48px;
+    padding: 0.875rem 1.125rem;
+    font-size: 1rem;
+  }
+
+  /* Larger input fields */
+  input[type="text"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="email"],
+  select,
+  textarea {
+    min-height: 48px;
+    font-size: 16px; /* Prevents iOS zoom on focus */
+    padding: 0.75rem;
+  }
+
+  /* Prevent iOS zoom on select */
+  select {
+    font-size: 16px;
+  }
+
+  /* Better spacing between form elements */
+  .space-y-4 > * + * {
+    margin-top: 1.5rem;
+  }
+
+  /* Larger buttons */
+  button {
+    min-height: 48px;
+    padding: 0.875rem 1.5rem;
+  }
+
+  /* Larger badges */
+  .badge {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* iOS-specific fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Fix for iOS safe area (notch) */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Better iOS scrolling */
+  .ios-scroll {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: scroll;
+  }
+
+  /* Fix iOS tap highlight */
+  button,
+  a,
+  .clickable {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Android-specific fixes */
+@media screen and (max-width: 768px) and (-webkit-min-device-pixel-ratio: 2) {
+  /* Better Android text rendering */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Prevent text selection on buttons */
+button,
+.touch-target {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Better focus states for accessibility */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.touch-target:focus-visible {
+  outline: 2px solid #3E86D7;
+  outline-offset: 2px;
+}
+
+/* Active/pressed states for better feedback */
+button:active,
+.touch-target:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease;
+}
+
+/* Disabled state styling */
+button:disabled,
+.touch-target:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Mobile-friendly cards */
+@media (max-width: 768px) {
+  .card {
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Better spacing in cards */
+  .card-content {
+    padding: 1.5rem;
+  }
+
+  .card-header {
+    padding: 1.5rem 1.5rem 0;
+  }
+
+  .card-footer {
+    padding: 0 1.5rem 1.5rem;
+  }
+}
+
+/* Sticky positioning for mobile navigation */
+@media (max-width: 768px) {
+  .sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 1rem;
+  }
+}
+
+/* Better modal/dialog on mobile */
+@media (max-width: 768px) {
+  .dialog-content {
+    width: 100%;
+    max-width: 100vw;
+    margin: 0;
+    border-radius: 1rem 1rem 0 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+}
+
+/* Loading states */
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Haptic feedback visual indicators */
+@media (hover: none) and (pointer: coarse) {
+  /* Add subtle scale animation on touch */
+  .haptic-feedback:active {
+    transform: scale(0.96);
+    transition: transform 0.05s ease-out;
+  }
+}

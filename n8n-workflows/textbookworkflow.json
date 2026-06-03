@@ -1,0 +1,1752 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "book-live-generation-start",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c637cece-ebdb-4715-94b1-ea6f910ba0e4",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -3920,
+        608
+      ],
+      "webhookId": "book-live-generation-start"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, executionId: $execution.id, jobId: $json.body.jobId, bookId: $json.body.bookId }) }}",
+        "options": {}
+      },
+      "id": "f29e5e59-4e19-412c-b9aa-625f250336ee",
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -3696,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and validate input data\nconst body = $input.first().json.body;\n\nif (!body.jobId || !body.bookId || !body.config) {\n  throw new Error('Missing required fields: jobId, bookId, config');\n}\n\n// Normalize callback URL\nlet callbackUrl = body.callbackUrl || '';\nif (!callbackUrl.startsWith('http')) {\n  callbackUrl = 'https://' + callbackUrl;\n}\n\n// Preview mode: Only generate first chapter if true\nconst previewMode = body.config.previewMode === true;\nconst startFromChapter = body.config.startFromChapter || 1;\n\n// Check for existing outline (for continuation after purchase)\nconst existingOutline = body.existingOutline || null;\n\n// Multilingual support\nconst language = body.config.language || 'en';\nconst languageNames = {\n  en: 'English', de: 'German (Deutsch)', es: 'Spanish (Español)',\n  fr: 'French (Français)', it: 'Italian (Italiano)', pt: 'Portuguese (Português)',\n  nl: 'Dutch (Nederlands)', pl: 'Polish (Polski)', ru: 'Russian (Русский)',\n  ja: 'Japanese (日本語)', ko: 'Korean (한국어)', zh: 'Chinese (中文)',\n  ar: 'Arabic (العربية)', tr: 'Turkish (Türkçe)', hi: 'Hindi (हिन्दी)',\n  sv: 'Swedish (Svenska)', da: 'Danish (Dansk)', no: 'Norwegian (Norsk)',\n  fi: 'Finnish (Suomi)', cs: 'Czech (Čeština)', el: 'Greek (Ελληνικά)',\n  he: 'Hebrew (עברית)', id: 'Indonesian (Bahasa Indonesia)',\n  th: 'Thai (ไทย)', vi: 'Vietnamese (Tiếng Việt)'\n};\nconst languageName = languageNames[language] || 'English';\n\n// Status messages by language\nconst messages = language === 'de' ? {\n  creatingStructure: 'Erstelle Buchstruktur...',\n  structureDone: 'Buchstruktur fertig - Starte Kapitel...',\n  structureDonePreview: 'Buchstruktur fertig - Generiere Vorschau-Kapitel...',\n  writingChapter: 'Kapitel {chapter}: {scene} wird geschrieben...',\n  chapterOf: 'Kapitel {chapter}',\n  chapterDone: 'Kapitel {chapter} fertig!',\n  bookComplete: 'Dein Buch ist fertig!',\n  previewComplete: 'Vorschau-Kapitel fertig! Kaufe das Buch für alle Kapitel.',\n  generatingCover: 'Generiere Buchcover...',\n  coverComplete: 'Buchcover erstellt!'\n} : {\n  creatingStructure: 'Creating book structure...',\n  structureDone: 'Book structure ready - Starting chapters...',\n  structureDonePreview: 'Book structure ready - Generating preview chapter...',\n  writingChapter: 'Chapter {chapter}: Writing {scene}...',\n  chapterOf: 'Chapter {chapter}',\n  chapterDone: 'Chapter {chapter} complete!',\n  bookComplete: 'Your book is ready!',\n  previewComplete: 'Preview chapter complete! Purchase the book for all chapters.',\n  generatingCover: 'Generating book cover...',\n  coverComplete: 'Book cover created!'\n};\n\n// Supabase storage config for cover upload\n\nconst storageBucket = body.storageBucket || 'book-covers';\n\nreturn [{\n  json: {\n    jobId: body.jobId,\n    bookId: body.bookId,\n    userId: body.userId,\n    config: body.config,\n    callbackUrl: callbackUrl,\n    totalChapters: body.config.totalChapters || 5,\n    webhookSecret:'Bookcraft2025vonBeyerdigital!1234321',\n    // Preview mode settings\n    previewMode: previewMode,\n    startFromChapter: startFromChapter,\n    // If preview mode, only generate chapter 1. Otherwise generate from startFromChapter.\n    chaptersToGenerate: previewMode ? 1 : (body.config.totalChapters || 5),\n    // Existing outline for continuation (skip GPT outline generation)\n    existingOutline: existingOutline,\n    isContinuation: !!existingOutline,\n    // Language settings\n    language: language,\n    languageName: languageName,\n    messages: messages,\n    // Supabase storage for cover\n\n    storageBucket: storageBucket\n  }\n}];"
+      },
+      "id": "cdd0f529-5392-4c0c-b3b6-393f4ce63744",
+      "name": "Setup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3472,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "={{ $json.webhookSecret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: $json.jobId, status: 'processing', progress: 5, currentStep: $json.messages.creatingStructure, previewMode: $json.previewMode }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "de234cae-ec01-4f5c-9fb5-bfd53a06844f",
+      "name": "Status: Start",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3248,
+        608
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const setup = $('Setup').first().json;\n  const config = setup.config;\n  const language = setup.language || 'en';\n  const languageName = setup.languageName || 'English';\n  \n  // Safely convert mainCharacters to string\n  let mainCharsStr = '';\n  if (typeof config.mainCharacters === 'string') {\n    mainCharsStr = config.mainCharacters;\n  } else if (Array.isArray(config.mainCharacters)) {\n    mainCharsStr = config.mainCharacters.map(c => typeof c === 'object' ? (c.name || c.description || JSON.stringify(c)) : String(c)).join(', ');\n  } else if (config.mainCharacters && typeof config.mainCharacters === 'object') {\n    mainCharsStr = JSON.stringify(config.mainCharacters);\n  }\n  \n  // German prompt\n  const promptDE = `Erstelle eine Buchgliederung:\n\nTITEL: \"${config.title}\"\nGENRE: ${config.genre}\nBESCHREIBUNG: ${config.description}\nHANDLUNG: ${config.plotOutline || 'Entwickle eine fesselnde Handlung'}\nCHARAKTERE: ${mainCharsStr}\nSCHAUPLATZ: ${config.setting}\n\n⚠️ WICHTIG: Erstelle EXAKT ${config.totalChapters} Kapitel!\n\nSTIL: ${config.writingStyle}, TON: ${config.tone}, POV: ${config.pov}, ZEITFORM: ${config.tenseStyle}\n\nJedes Kapitel hat 3-4 Szenen (keyEvents). Jede Szene wird zu ~1500 Wörtern.\n\nJSON FORMAT:\n{\n  \"bookSummary\": \"Zusammenfassung\",\n  \"chapters\": [\n    {\n      \"number\": 1,\n      \"title\": \"Kapiteltitel\",\n      \"summary\": \"Zusammenfassung\",\n      \"keyEvents\": [\n        { \"id\": 1, \"title\": \"Szenen-Titel\", \"description\": \"Was passiert\", \"emotion\": \"Stimmung\" }\n      ]\n    }\n  ]\n}`;\n\n  // English prompt for all other languages\n  const promptEN = `Create a book outline:\n\n**IMPORTANT: All text must be written in ${languageName}!**\n\nTITLE: \"${config.title}\"\nGENRE: ${config.genre}\nDESCRIPTION: ${config.description}\nPLOT: ${config.plotOutline || 'Develop an engaging plot'}\nCHARACTERS: ${mainCharsStr}\nSETTING: ${config.setting}\n\n⚠️ IMPORTANT: Create EXACTLY ${config.totalChapters} chapters!\n\nSTYLE: ${config.writingStyle}, TONE: ${config.tone}, POV: ${config.pov}, TENSE: ${config.tenseStyle}\n\nEach chapter has 3-4 scenes (keyEvents). Each scene will be ~1500 words.\n\n**Remember: All titles, summaries, and descriptions must be in ${languageName}!**\n\nJSON FORMAT:\n{\n  \"bookSummary\": \"Summary in ${languageName}\",\n  \"chapters\": [\n    {\n      \"number\": 1,\n      \"title\": \"Chapter title in ${languageName}\",\n      \"summary\": \"Summary in ${languageName}\",\n      \"keyEvents\": [\n        { \"id\": 1, \"title\": \"Scene title in ${languageName}\", \"description\": \"What happens in ${languageName}\", \"emotion\": \"Mood\" }\n      ]\n    }\n  ]\n}`;\n\n  const prompt = language === 'de' ? promptDE : promptEN;\n  const systemPrompt = language === 'de' \n    ? 'Du bist ein professioneller Buchautor. Antworte NUR mit validem JSON.'\n    : `You are a professional book author. Write all content in ${languageName}. Respond ONLY with valid JSON.`;\n\n  return JSON.stringify({\n    model: 'gpt-4o-mini',\n    messages: [\n      { role: 'system', content: systemPrompt },\n      { role: 'user', content: prompt }\n    ],\n    response_format: { type: 'json_object' },\n    temperature: 0.7,\n    max_tokens: 8000\n  });\n})() }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "430b78db-aaf3-4ecc-824e-0601f7624235",
+      "name": "Generate Outline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3024,
+        608
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "0gfwTUechOA6WzAO",
+          "name": "Bookcraft OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst setup = $('Setup').first().json;\nconst targetChapters = setup.totalChapters;\n\nlet outline;\n\n// Check if we have an existing outline (continuation mode)\nif (setup.existingOutline && setup.existingOutline.chapters) {\n  console.log('Using existing outline for continuation');\n  outline = setup.existingOutline;\n} else {\n  // Parse outline from GPT response\n  try {\n    const raw = response.choices?.[0]?.message?.content || '{}';\n    outline = JSON.parse(raw);\n    \n    if (!outline.chapters || outline.chapters.length === 0) {\n      throw new Error('No chapters');\n    }\n    \n    // Ensure correct chapter count\n    while (outline.chapters.length < targetChapters) {\n      outline.chapters.push({\n        number: outline.chapters.length + 1,\n        title: `Kapitel ${outline.chapters.length + 1}`,\n        summary: 'Fortsetzung',\n        keyEvents: [\n          { id: 1, title: 'Szene 1', description: 'Handlung', emotion: 'Spannend' },\n          { id: 2, title: 'Szene 2', description: 'Entwicklung', emotion: 'Dramatisch' },\n          { id: 3, title: 'Szene 3', description: 'Abschluss', emotion: 'Hoffnungsvoll' }\n        ]\n      });\n    }\n    \n    outline.chapters = outline.chapters.slice(0, targetChapters);\n    \n    // Ensure 3 keyEvents minimum per chapter\n    outline.chapters.forEach((ch, i) => {\n      ch.number = i + 1;\n      if (!ch.keyEvents || ch.keyEvents.length < 3) {\n        ch.keyEvents = ch.keyEvents || [];\n        while (ch.keyEvents.length < 3) {\n          ch.keyEvents.push({\n            id: ch.keyEvents.length + 1,\n            title: `Szene ${ch.keyEvents.length + 1}`,\n            description: 'Handlung',\n            emotion: 'Spannend'\n          });\n        }\n      }\n      ch.keyEvents.forEach((ev, j) => { ev.id = j + 1; });\n    });\n    \n  } catch (e) {\n    // Fallback outline\n    outline = {\n      bookSummary: setup.config.title,\n      chapters: Array.from({ length: targetChapters }, (_, i) => ({\n        number: i + 1,\n        title: `Kapitel ${i + 1}`,\n        summary: `Kapitel ${i + 1}`,\n        keyEvents: [\n          { id: 1, title: 'Eröffnung', description: 'Start', emotion: 'Neugierig' },\n          { id: 2, title: 'Entwicklung', description: 'Mitte', emotion: 'Spannend' },\n          { id: 3, title: 'Höhepunkt', description: 'Ende', emotion: 'Dramatisch' }\n        ]\n      }))\n    };\n  }\n}\n\n// Filter chapters based on preview mode and startFromChapter\nconst startFrom = setup.startFromChapter || 1;\nconst chaptersToProcess = setup.previewMode \n  ? outline.chapters.filter(ch => ch.number === 1)  // Preview: only chapter 1\n  : outline.chapters.filter(ch => ch.number >= startFrom);  // Full/Continue: from startFromChapter\n\n// Count total scenes for progress calculation\nconst totalScenes = chaptersToProcess.reduce((sum, ch) => sum + ch.keyEvents.length, 0);\n\nconsole.log('Chapters to process:', chaptersToProcess.length, 'Starting from:', startFrom, 'Preview mode:', setup.previewMode);\n\nreturn [{\n  json: {\n    ...setup,\n    outline: outline,  // Full outline (saved for later continuation)\n    chaptersToProcess: chaptersToProcess,  // Only chapters to generate now\n    totalScenes: totalScenes\n  }\n}];"
+      },
+      "id": "9c06e1a0-a866-4539-b1f1-3d5cffc96c62",
+      "name": "Parse Outline",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2800,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "={{ $json.webhookSecret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: $json.jobId, status: 'processing', progress: 10, currentStep: $json.previewMode ? $('Setup').first().json.messages.structureDonePreview : $('Setup').first().json.messages.structureDone, outline: { bookSummary: $json.outline.bookSummary, chapters: $json.outline.chapters.map(ch => ({ number: ch.number, title: ch.title, summary: ch.summary, keyEvents: ch.keyEvents })) }, previewMode: $json.previewMode }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "c963066e-0a82-4d56-80ab-450f73492eda",
+      "name": "Status: Outline Done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2576,
+        944
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flatten scenes only for chaptersToProcess (respects preview mode)\nconst data = $('Parse Outline').first().json;\nconst scenes = [];\nlet sceneIndex = 0;\n\n// Use chaptersToProcess instead of full outline\nfor (const chapter of data.chaptersToProcess) {\n  for (const event of chapter.keyEvents) {\n    scenes.push({\n      // Scene info\n      sceneIndex: sceneIndex++,\n      eventId: event.id,\n      eventTitle: event.title,\n      eventDescription: event.description,\n      eventEmotion: event.emotion,\n      // Chapter info\n      chapterNumber: chapter.number,\n      chapterTitle: chapter.title,\n      chapterSummary: chapter.summary,\n      totalEventsInChapter: chapter.keyEvents.length,\n      // Global info (passed through)\n      jobId: data.jobId,\n      bookId: data.bookId,\n      callbackUrl: data.callbackUrl,\n      webhookSecret: data.webhookSecret,\n      config: data.config,\n      outline: data.outline,  // Full outline for reference\n      totalChapters: data.totalChapters,\n      totalScenes: data.totalScenes,\n      previewMode: data.previewMode,\n      chaptersToGenerate: data.chaptersToGenerate\n    });\n  }\n}\n\nreturn scenes.map(s => ({ json: s }));"
+      },
+      "id": "d2e0a05b-727e-4a20-9779-3a6574544d81",
+      "name": "Flatten All Scenes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2352,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "8e55ebbf-c095-47f0-bf23-b0f1c016072f",
+      "name": "Loop Scenes",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2128,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Loop Scenes').first().json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "={{ $('Loop Scenes').first().json.webhookSecret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: $('Loop Scenes').first().json.jobId, status: 'processing', progress: Math.round(10 + ($('Loop Scenes').first().json.sceneIndex / $('Loop Scenes').first().json.totalScenes) * 85), currentStep: $('Setup').first().json.messages.writingChapter.replace('{chapter}', $('Loop Scenes').first().json.chapterNumber).replace('{scene}', $('Loop Scenes').first().json.eventTitle) }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "d77de381-0af2-4af1-8485-31edbe7c99b6",
+      "name": "Status: Writing Scene",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1904,
+        944
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "book_generation_jobs",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop Scenes').first().json.jobId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "last_heartbeat_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "current_step",
+              "fieldValue": "={{ $('Setup').first().json.messages.chapterOf.replace('{chapter}', $('Loop Scenes').first().json.chapterNumber) + ': ' + $('Loop Scenes').first().json.eventTitle }}"
+            },
+            {
+              "fieldId": "progress",
+              "fieldValue": "={{ Math.round(10 + ($('Loop Scenes').first().json.sceneIndex / $('Loop Scenes').first().json.totalScenes) * 85) }}"
+            }
+          ]
+        }
+      },
+      "id": "b5653916-e79b-48ba-92f1-bb0a0e5f9902",
+      "name": "Heartbeat",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1680,
+        944
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const scene = $('Loop Scenes').first().json;\n  const config = scene.config;\n  const setup = $('Setup').first().json;\n  const language = setup.language || 'en';\n  const languageName = setup.languageName || 'English';\n  \n  // Safely convert mainCharacters to string\n  let mainCharsStr = '';\n  if (typeof config.mainCharacters === 'string') {\n    mainCharsStr = config.mainCharacters;\n  } else if (Array.isArray(config.mainCharacters)) {\n    mainCharsStr = config.mainCharacters.map(c => typeof c === 'object' ? (c.name || c.description || JSON.stringify(c)) : String(c)).join(', ');\n  } else if (config.mainCharacters && typeof config.mainCharacters === 'object') {\n    mainCharsStr = JSON.stringify(config.mainCharacters);\n  }\n  \n  // German prompt\n  const promptDE = `Schreibe die Szene \"${scene.eventTitle}\" für Kapitel ${scene.chapterNumber}.\n\nBUCH: ${config.title}\nGENRE: ${config.genre}\nKAPITEL: ${scene.chapterTitle}\nKAPITEL-ZUSAMMENFASSUNG: ${scene.chapterSummary}\n\nSZENE:\n- Titel: ${scene.eventTitle}\n- Beschreibung: ${scene.eventDescription}\n- Stimmung: ${scene.eventEmotion}\n- Position: Szene ${scene.eventId} von ${scene.totalEventsInChapter}\n\nCHARAKTERE: ${mainCharsStr}\nSCHAUPLATZ: ${config.setting}\n\nSTIL: ${config.writingStyle}, TON: ${config.tone}\nPOV: ${config.pov}, ZEITFORM: ${config.tenseStyle}\n\nAnforderungen:\n1. Schreibe mindestens 1500 Wörter\n2. Nur Fließtext - keine Überschriften, Aufzählungen oder Meta-Kommentare\n3. Show, don't tell - lebendige Details und Dialoge\n4. Fließender Übergang zur nächsten Szene`;\n\n  // English prompt for all other languages\n  const promptEN = `Write the scene \"${scene.eventTitle}\" for Chapter ${scene.chapterNumber}.\n\n**IMPORTANT: Write ALL text in ${languageName}!**\n\nBOOK: ${config.title}\nGENRE: ${config.genre}\nCHAPTER: ${scene.chapterTitle}\nCHAPTER SUMMARY: ${scene.chapterSummary}\n\nSCENE:\n- Title: ${scene.eventTitle}\n- Description: ${scene.eventDescription}\n- Mood: ${scene.eventEmotion}\n- Position: Scene ${scene.eventId} of ${scene.totalEventsInChapter}\n\nCHARACTERS: ${mainCharsStr}\nSETTING: ${config.setting}\n\nSTYLE: ${config.writingStyle}, TONE: ${config.tone}\nPOV: ${config.pov}, TENSE: ${config.tenseStyle}\n\nRequirements:\n1. Write at least 1500 words\n2. Prose only - no headers, lists, or meta-comments\n3. Show, don't tell - vivid details and dialogues\n4. Smooth transition to the next scene\n\n**Remember: The entire text must be written in ${languageName}!**`;\n\n  const prompt = language === 'de' ? promptDE : promptEN;\n  const systemPrompt = language === 'de' \n    ? `Du bist ein Meisterautor im Genre ${config.genre}. Schreibe NUR Fließtext.`\n    : `You are a master author in the ${config.genre} genre. Write in ${languageName}. Write ONLY prose.`;\n\n  return JSON.stringify({\n    model: 'gpt-4o-mini',\n    messages: [\n      { role: 'system', content: systemPrompt },\n      { role: 'user', content: prompt }\n    ],\n    temperature: 0.85,\n    max_tokens: 8000\n  });\n})() }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "a3b5a4e8-82c8-483b-b24e-bf4baed6af32",
+      "name": "Write Scene (GPT)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1456,
+        944
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "0gfwTUechOA6WzAO",
+          "name": "Bookcraft OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst scene = $('Loop Scenes').first().json;\n\nlet text = '';\ntry {\n  text = response.choices?.[0]?.message?.content || '';\n} catch (e) {\n  text = `[Szene: ${scene.eventTitle}]`;\n}\n\n// Clean up text\ntext = String(text)\n  .replace(/^#+\\s+.*$/gm, '')  // Remove headers\n  .replace(/\\*\\*.*?\\*\\*/g, m => m.replace(/\\*\\*/g, ''))  // Remove bold\n  .trim();\n\nconst wordCount = text.split(/\\s+/).filter(Boolean).length;\n\nreturn [{\n  json: {\n    // Scene content\n    sceneText: text,\n    wordCount: wordCount,\n    // Pass through all scene data\n    ...scene\n  }\n}];"
+      },
+      "id": "95b7c0e6-e46d-4028-a136-a42cdd7f9233",
+      "name": "Parse Scene",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "={{ $json.webhookSecret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: $json.jobId, status: 'processing', progress: Math.round(10 + (($json.sceneIndex + 1) / $json.totalScenes) * 85), currentStep: $('Setup').first().json.messages.chapterOf.replace('{chapter}', $json.chapterNumber) + ': ' + $json.eventTitle, textChunk: { chapterNumber: $json.chapterNumber, chapterTitle: $json.chapterTitle, text: $json.sceneText, isComplete: false, wordCount: $json.wordCount } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "2e30fbaa-3203-487a-a6e3-5d05a989c5e8",
+      "name": "Send Text Chunk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1008,
+        944
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "tableId": "book_scenes",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "job_id",
+              "fieldValue": "={{ $('Parse Scene').first().json.jobId }}"
+            },
+            {
+              "fieldId": "chapter_number",
+              "fieldValue": "={{ $('Parse Scene').first().json.chapterNumber }}"
+            },
+            {
+              "fieldId": "event_id",
+              "fieldValue": "={{ $('Parse Scene').first().json.eventId }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $('Parse Scene').first().json.eventTitle }}"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $('Parse Scene').first().json.sceneText }}"
+            },
+            {
+              "fieldId": "word_count",
+              "fieldValue": "={{ $('Parse Scene').first().json.wordCount }}"
+            }
+          ]
+        }
+      },
+      "id": "472fe04d-71e5-490a-9385-449aab8957c1",
+      "name": "Save Scene to DB",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        944
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if this is the last scene in the chapter\nconst scene = $('Parse Scene').first().json;\nconst isLastSceneInChapter = scene.eventId === scene.totalEventsInChapter;\n\nconsole.log('Check Chapter End:', { chapterNumber: scene.chapterNumber, eventId: scene.eventId, totalEventsInChapter: scene.totalEventsInChapter, isLastSceneInChapter });\n\n// Pass through with flag\nreturn [{\n  json: {\n    ...scene,\n    isLastSceneInChapter: isLastSceneInChapter\n  }\n}];"
+      },
+      "id": "048e5b2f-7ea2-4cc3-8720-21531bb94d05",
+      "name": "Check Chapter End",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isLastSceneInChapter }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "d958ffbd-26c3-40c3-93d9-ee7399706731",
+      "name": "If Chapter Done",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "book_scenes",
+        "returnAll": true,
+        "filterType": "string",
+        "filterString": "={{ 'job_id=eq.' + $json.jobId + '&chapter_number=eq.' + $json.chapterNumber + '&order=event_id.asc' }}"
+      },
+      "id": "a7fdf1a1-fe17-4f56-b148-80d8fba4af93",
+      "name": "Get Chapter Scenes",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        872
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Supabase returns scenes as array of items\nconst scenes = $input.all().map(item => item.json);\nconst sceneData = $('Check Chapter End').first().json;\n\n// Merge all scenes into chapter\nlet content = '';\nlet totalWords = 0;\n\nif (scenes.length > 0) {\n  // Sort by event_id to ensure correct order\n  scenes.sort((a, b) => (a.event_id || 0) - (b.event_id || 0));\n  content = scenes.map(s => s.content).join('\\n\\n');\n  totalWords = scenes.reduce((sum, s) => sum + (s.word_count || 0), 0);\n} else {\n  // Fallback: use current scene\n  content = sceneData.sceneText || '';\n  totalWords = sceneData.wordCount || 0;\n}\n\nreturn [{\n  json: {\n    // Chapter data\n    chapterNumber: sceneData.chapterNumber,\n    chapterTitle: sceneData.chapterTitle,\n    chapterContent: content,\n    chapterWordCount: totalWords,\n    scenesCount: scenes.length || 1,\n    // Pass through globals\n    jobId: sceneData.jobId,\n    bookId: sceneData.bookId,\n    callbackUrl: sceneData.callbackUrl,\n    webhookSecret: sceneData.webhookSecret,\n    totalChapters: sceneData.totalChapters,\n    previewMode: sceneData.previewMode,\n    outline: sceneData.outline\n  }\n}];"
+      },
+      "id": "c5e36682-c7d1-46a3-8227-f961ce0c06ec",
+      "name": "Merge Chapter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        872
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "={{ $json.webhookSecret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: $json.jobId, status: 'processing', progress: Math.round(10 + ($json.chapterNumber / $json.totalChapters) * 85), currentStep: $('Setup').first().json.messages.chapterDone.replace('{chapter}', $json.chapterNumber), chapter: { number: $json.chapterNumber, title: $json.chapterTitle, content: $json.chapterContent, wordCount: $json.chapterWordCount }, chapterComplete: { number: $json.chapterNumber, title: $json.chapterTitle, wordCount: $json.chapterWordCount } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "77c567cc-c329-482f-a209-2ebd7a38cdab",
+      "name": "Send Chapter Complete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        336,
+        872
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "books",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('Merge Chapter').first().json.bookId }}"
+            }
+          ]
+        }
+      },
+      "id": "b49b6eb6-8a2a-47e0-b982-184888c07061",
+      "name": "Get Book",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        560,
+        872
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const book = $input.first().json;\nconst chapter = $('Merge Chapter').first().json;\n\nlet chapters = [];\ntry {\n  chapters = JSON.parse(book.chapters_json || '[]');\n} catch (e) {\n  chapters = [];\n}\n\n// Add or update chapter\nconst idx = chapters.findIndex(c => c.number === chapter.chapterNumber);\nconst chData = {\n  id: `chapter-${chapter.chapterNumber}`,\n  number: chapter.chapterNumber,\n  title: chapter.chapterTitle,\n  content: chapter.chapterContent,\n  wordCount: chapter.chapterWordCount\n};\n\nif (idx >= 0) {\n  chapters[idx] = chData;\n} else {\n  chapters.push(chData);\n}\n\nchapters.sort((a, b) => a.number - b.number);\n\n// Build full content\nconst fullContent = chapters\n  .map(c => `# ${c.title}\\n\\n${c.content}`)\n  .join('\\n\\n═══════════════════════════════════════\\n\\n');\n\nreturn [{\n  json: {\n    bookId: chapter.bookId,\n    chapters_json: JSON.stringify(chapters),\n    content: fullContent\n  }\n}];"
+      },
+      "id": "c8d9e078-61f9-4226-bfb0-3c1ca2fa4264",
+      "name": "Update Book Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        872
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "books",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.bookId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.content }}"
+            },
+            {
+              "fieldId": "chapters_json",
+              "fieldValue": "={{ $json.chapters_json }}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "90411b1e-66fd-4dec-a80a-e7b14a4267fc",
+      "name": "Save Book",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1008,
+        872
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "716c5e9d-f4bf-4049-b473-fcf7ff875928",
+      "name": "Continue Loop",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        1016
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if this is preview mode to determine final status\nconst setup = $('Setup').first().json;\nconst messages = setup.messages;\n\n// Try to get outline from Parse Outline, fallback to existing outline from Setup\nlet outline;\ntry {\n  const parseOutline = $('Parse Outline').first().json;\n  outline = parseOutline.outline;\n  console.log('Got outline from Parse Outline:', outline?.chapters?.length, 'chapters');\n} catch (e) {\n  console.log('Could not get outline from Parse Outline, trying Setup.existingOutline');\n  outline = setup.existingOutline;\n}\n\nif (!outline || !outline.chapters) {\n  console.error('No outline available! Setup:', JSON.stringify(setup));\n  throw new Error('No outline available for creating chapter structures');\n}\n\nconst isPreviewMode = setup.previewMode === true;\n\nconsole.log('Determine Final Status - Preview mode:', isPreviewMode, 'Chapters in outline:', outline.chapters.length);\n\nreturn [{\n  json: {\n    ...setup,\n    outline: outline,\n    finalStatus: isPreviewMode ? 'preview_completed' : 'completed',\n    finalStep: isPreviewMode ? messages.previewComplete : messages.bookComplete,\n    bookStatus: isPreviewMode ? 'preview' : 'completed'\n  }\n}];"
+      },
+      "id": "bfb956f0-281d-44b4-818b-7985037ee419",
+      "name": "Determine Final Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1904,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "books",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('Determine Final Status').first().json.bookId }}"
+            }
+          ]
+        }
+      },
+      "id": "f2a9da8f-5cb8-4cd9-a8fc-ed0a7b73832f",
+      "name": "Get Book for Placeholders",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1680,
+        752
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create placeholder chapters for all chapters from outline\n// Chapter 1 has content (already generated), chapters 2-N get placeholder\nconst book = $input.first().json;\nconst setup = $('Determine Final Status').first().json;\nconst outline = setup.outline;\nconst isPreviewMode = setup.previewMode === true;\n\nconsole.log('Create All Chapter Structures - Book ID:', setup.bookId);\nconsole.log('Outline chapters:', outline?.chapters?.length);\nconsole.log('Existing chapters_json:', book.chapters_json?.substring(0, 200));\n\nif (!outline || !outline.chapters || outline.chapters.length === 0) {\n  console.error('No outline chapters available!');\n  throw new Error('No outline chapters to create structures from');\n}\n\n// Parse existing chapters\nlet existingChapters = [];\ntry {\n  existingChapters = JSON.parse(book.chapters_json || '[]');\n  console.log('Parsed existing chapters:', existingChapters.length);\n} catch (e) {\n  console.log('Could not parse existing chapters, starting fresh');\n  existingChapters = [];\n}\n\n// Create map of existing chapter content by number\nconst existingContent = new Map();\nexistingChapters.forEach(ch => {\n  if (ch.number) existingContent.set(ch.number, ch);\n});\n\nconsole.log('Existing chapters with content:', existingContent.size);\n\n// Build complete chapter list from outline\nconst allChapters = outline.chapters.map((outlineCh, idx) => {\n  const chapterNum = outlineCh.number || (idx + 1);\n  const existing = existingContent.get(chapterNum);\n  \n  if (existing && existing.content && existing.content.length > 100) {\n    // Chapter has real content, use it\n    console.log('Chapter', chapterNum, 'has content, keeping it');\n    return existing;\n  } else {\n    // Create placeholder for locked chapters\n    console.log('Chapter', chapterNum, 'is placeholder (locked:', isPreviewMode && chapterNum > 1, ')');\n    return {\n      id: `chapter-${chapterNum}`,\n      number: chapterNum,\n      title: outlineCh.title || `Kapitel ${chapterNum}`,\n      content: '',  // Empty content - will be filled after purchase\n      wordCount: 0,\n      isLocked: isPreviewMode && chapterNum > 1,  // Mark as locked in preview mode\n      summary: outlineCh.summary || ''  // Include summary for teaser\n    };\n  }\n});\n\n// Sort by chapter number\nallChapters.sort((a, b) => a.number - b.number);\n\n// Build content string (only from chapters with content)\nconst fullContent = allChapters\n  .filter(c => c.content && c.content.length > 0)\n  .map(c => `# ${c.title}\\n\\n${c.content}`)\n  .join('\\n\\n═══════════════════════════════════════\\n\\n');\n\nconsole.log('Final result:', allChapters.length, 'total chapters,', allChapters.filter(c => c.content).length, 'with content');\n\nreturn [{\n  json: {\n    ...setup,\n    bookId: setup.bookId,\n    chapters_json: JSON.stringify(allChapters),\n    content: fullContent,\n    totalChaptersCreated: allChapters.length\n  }\n}];"
+      },
+      "id": "4825db3f-ee8a-4d90-8865-f7f14fc63b99",
+      "name": "Create All Chapter Structures",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1456,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "books",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.bookId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "chapters_json",
+              "fieldValue": "={{ $json.chapters_json }}"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.content }}"
+            },
+            {
+              "fieldId": "ai_generated",
+              "fieldValue": "={{ true }}"
+            }
+          ]
+        }
+      },
+      "id": "bb996339-7472-466e-b679-578d0c3c6d42",
+      "name": "Save All Chapters",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1232,
+        752
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "book_generation_jobs",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Determine Final Status').first().json.jobId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $('Determine Final Status').first().json.finalStatus }}"
+            },
+            {
+              "fieldId": "progress",
+              "fieldValue": "100"
+            },
+            {
+              "fieldId": "current_step",
+              "fieldValue": "={{ $('Determine Final Status').first().json.finalStep }}"
+            },
+            {
+              "fieldId": "completed_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "last_heartbeat_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ JSON.stringify({ outline: $('Determine Final Status').first().json.outline, previewMode: $('Determine Final Status').first().json.previewMode, totalChapters: $('Determine Final Status').first().json.totalChapters }) }}"
+            }
+          ]
+        }
+      },
+      "id": "f46c3d49-3689-4f28-97aa-95bde6d6ea3a",
+      "name": "Complete Job",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1008,
+        752
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "books",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Determine Final Status').first().json.bookId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $('Determine Final Status').first().json.bookStatus }}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "31146ba4-9793-4975-abad-ff26c30bd892",
+      "name": "Complete Book",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        752
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Determine Final Status').first().json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "={{ $('Determine Final Status').first().json.webhookSecret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: $('Determine Final Status').first().json.jobId, status: $('Determine Final Status').first().json.finalStatus, progress: 100, currentStep: $('Determine Final Status').first().json.finalStep, previewMode: $('Determine Final Status').first().json.previewMode, outline: $('Determine Final Status').first().json.outline }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "bc9a12ce-120d-4df7-bf32-3bce34ef642c",
+      "name": "Status: Complete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -560,
+        752
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "book_scenes",
+        "filterType": "string",
+        "filterString": "={{ 'job_id=eq.' + $('Determine Final Status').first().json.jobId }}"
+      },
+      "id": "b1c03f52-41ba-43b8-9e5c-8d1d9b2a024e",
+      "name": "Cleanup Scenes",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        752
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare cover generation data from Parse Outline output\nconst data = $('Parse Outline').first().json;\nconst config = data.config;\nconst setup = $('Setup').first().json;\nconst language = setup.language || 'en';\n\n// Genre-specific styling\nconst genreStyles = {\n  'Fantasy': 'magical, mystical elements with enchanted atmosphere',\n  'Science Fiction': 'futuristic, technological, space or sci-fi elements',\n  'Mystery': 'dark, intriguing atmosphere with mysterious shadows',\n  'Romance': 'romantic, elegant design with warm colors',\n  'Thriller': 'suspenseful, dramatic with bold contrasts',\n  'Horror': 'eerie, haunting atmosphere with dark tones',\n  'Historical': 'vintage, period-appropriate styling',\n  'Adventure': 'exciting, dynamic composition with action elements',\n  'Biography': 'professional, dignified design',\n  'Children': 'bright, playful, cheerful illustrations',\n  'Young Adult': 'modern, trendy design appealing to teens',\n  'Non-Fiction': 'clean, professional, informative design',\n  'Märchen': 'fairy tale style, magical and whimsical',\n  'Abenteuer': 'exciting adventure imagery',\n  'Tiere': 'animal-focused, nature elements',\n  'Familie': 'warm, family-oriented imagery'\n};\n\nconst genreStyle = genreStyles[config.genre] || 'creative and eye-catching design';\n\n// Build the cover generation prompt\nconst prompt = `Create a professional book cover design for a book titled \"${config.title}\".\n\nCRITICAL REQUIREMENTS:\n- Generate ONLY the front cover artwork as a FLAT, 2D image\n- NO 3D book rendering, NO book spine, NO book edges, NO shadows suggesting a physical book\n- NO back cover, NO wraparound design\n- The entire image should be filled with the cover artwork edge-to-edge\n- This is a flat rectangular image that will be printed as a book cover\n\nGenre: ${config.genre}\nStyle: ${config.writingStyle || 'literary'}\nDescription: ${config.description || 'A captivating story'}\nTarget Audience: ${config.targetAudience || 'general readers'}\n\nVisual Style Requirements:\n- ${genreStyle}\n- Include the book title \"${config.title}\" in elegant, readable typography\n- Professional cover layout filling the entire image\n- High-quality, print-ready artwork\n- Color scheme appropriate for ${config.genre} genre\n- Sophisticated, market-ready design\n\nOutput: A single flat cover image, NOT a 3D book mockup.`;\n\nconsole.log('Cover Generation Setup:');\nconsole.log('- Book:', config.title);\nconsole.log('- Genre:', config.genre);\nconsole.log('- Book ID:', data.bookId);\n\nreturn [{\n  json: {\n    ...data,\n    coverPrompt: prompt,\n    supabaseUrl: setup.supabaseUrl,\n    supabaseServiceKey: setup.supabaseServiceKey,\n    storageBucket: setup.storageBucket,\n    userId: data.userId\n  }\n}];"
+      },
+      "id": "6f061253-c7d7-4ffb-bbb3-abb598c8e09a",
+      "name": "Prepare Cover Generation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2576,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "={{ $json.webhookSecret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: $json.jobId, status: 'processing', progress: 8, currentStep: $('Setup').first().json.messages.generatingCover, previewMode: $json.previewMode }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "aaa669e1-81bd-44b1-afb7-6d5e835845a6",
+      "name": "Status: Generating Cover",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2352,
+        416
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/images/generations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-image-1.5', prompt: $('Prepare Cover Generation').first().json.coverPrompt, size: '1024x1536', quality: 'high', n: 1 }) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "34031eb0-dd5e-42e7-acd6-6cfa15b95efd",
+      "name": "Generate Cover (GPT-1.5)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2128,
+        416
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "0gfwTUechOA6WzAO",
+          "name": "Bookcraft OpenAI"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cover-error-check",
+              "leftValue": "={{ $json.error ? 'true' : 'false' }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2afbe163-44e7-42c6-9a40-05740d4753d3",
+      "name": "Check Cover Error",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1904,
+        344
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle cover generation error\nconst response = $input.first().json;\nconst prepData = $('Prepare Cover Generation').first().json;\n\nconsole.log('Cover generation failed:', JSON.stringify(response.error || response));\n\n// Continue without cover - don't block book generation\nreturn [{\n  json: {\n    ...prepData,\n    coverUrl: null,\n    coverError: response.error?.message || 'Cover generation failed'\n  }\n}];"
+      },
+      "id": "d3798c49-dd41-4669-8455-2749e81e9d4b",
+      "name": "Handle Cover Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1680,
+        536
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse OpenAI GPT-1.5 response (like Picture Book workflow)\nconst response = $input.first().json;\nconst prepData = $('Prepare Cover Generation').first().json;\n\nlet coverBase64 = '';\nlet coverTempUrl = '';\n\ntry {\n  // OpenAI returns either b64_json or url\n  if (response.data?.[0]?.b64_json) {\n    coverBase64 = response.data[0].b64_json;\n    console.log('✅ Got Base64 cover image from OpenAI');\n  } else if (response.data?.[0]?.url) {\n    coverTempUrl = response.data[0].url;\n    console.log('✅ Got URL cover image from OpenAI:', coverTempUrl.substring(0, 50) + '...');\n  } else {\n    console.error('❌ No cover image data in response:', JSON.stringify(response).substring(0, 200));\n  }\n} catch (error) {\n  console.error('Error parsing cover image:', error);\n}\n\nif (!coverBase64 && !coverTempUrl) {\n  console.log('Cover: No image data in response');\n  return [{\n    json: {\n      ...prepData,\n      coverBase64: null,\n      coverUrl: null,\n      coverError: 'No cover image in response',\n      hasImage: false\n    }\n  }];\n}\n\nconsole.log('Cover generated successfully');\n\n// Create storage path for Supabase\nconst storagePath = `${prepData.userId}/${prepData.bookId}/cover.png`;\n\n// Create final public URL\nconst supabaseUrl = 'https://vpqxgzcwsilqbfnlwszc.supabase.co';\nconst storageBucket = prepData.storageBucket || 'book-covers';\nconst coverUrl = `${supabaseUrl}/storage/v1/object/public/${storageBucket}/${storagePath}`;\n\nconsole.log('📕 Cover Storage Path:', storagePath);\nconsole.log('🔗 Cover URL:', coverUrl);\n\n// Prepare binary data for upload\nlet binaryData = {};\nif (coverBase64) {\n  binaryData = {\n    data: {\n      data: coverBase64,\n      mimeType: 'image/png',\n      fileName: 'cover.png'\n    }\n  };\n}\n\nreturn [{\n  json: {\n    ...prepData,\n    coverBase64: coverBase64,\n    coverTempUrl: coverTempUrl,\n    coverUrl: coverUrl,\n    storagePath: storagePath,\n    supabaseUrl: supabaseUrl,\n    supabaseServiceKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZwcXhnemN3c2lscWJmbmx3c3pjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODAxNDc4MywiZXhwIjoyMDczNTkwNzgzfQ.9chQEaF4-3fzdLRzGzF_gBzPiWvLlcge4PULcR5KA2o',\n    hasImage: true\n  },\n  binary: binaryData\n}];"
+      },
+      "id": "0955ab6d-a01b-49f6-b22a-52d3cdc3318b",
+      "name": "Parse Cover Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1680,
+        296
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "has-image",
+              "leftValue": "={{ $json.hasImage === true ? 'true' : 'false' }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "16e01455-743a-42d0-bbe9-3942cbcd2671",
+      "name": "Check Has Image",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1456,
+        296
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.supabaseUrl }}/storage/v1/object/{{ $json.storageBucket }}/{{ $json.storagePath }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.supabaseServiceKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "image/png"
+            },
+            {
+              "name": "x-upsert",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "e081d17b-81df-43f9-bba2-60095ce74469",
+      "name": "Upload Cover to Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1232,
+        224
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prepData = $('Parse Cover Response').first().json;\nconst parsedData = $('Parse Cover Response').first().json;\n\n// Build public URL\nconst coverUrl = `${prepData.supabaseUrl}/storage/v1/object/public/${prepData.storageBucket}/${parsedData.storagePath}`;\n\nconsole.log('Cover uploaded successfully');\nconsole.log('Cover URL:', coverUrl);\n\nreturn [{\n  json: {\n    ...prepData,\n    coverUrl: coverUrl\n  }\n}];"
+      },
+      "id": "ab1b85ad-7305-47da-8b4c-d457ba98f502",
+      "name": "Build Cover URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1008,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "={{ $json.webhookSecret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: $json.jobId, status: 'processing', progress: 9, currentStep: $('Setup').first().json.messages.coverComplete, coverUrl: $json.coverUrl, previewMode: $json.previewMode }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "be4773ec-28ea-49b4-9414-708974bf0900",
+      "name": "Send Cover Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -784,
+        296
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "books",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Prepare Cover Generation').first().json.bookId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "cover_image",
+              "fieldValue": "={{ $('Build Cover URL').first().json.coverUrl }}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "5b337e63-96e4-48a1-b0d6-924cd34e7bcf",
+      "name": "Save Cover to Book",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        296
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "Wm3kjJ5eRN503SKq",
+          "name": "Bookcraft"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "2043b211-ed68-484d-ba3e-fa5abe23ad15",
+      "name": "Cover Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        416
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Response": {
+      "main": [
+        [
+          {
+            "node": "Setup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup": {
+      "main": [
+        [
+          {
+            "node": "Status: Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: Start": {
+      "main": [
+        [
+          {
+            "node": "Generate Outline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Outline": {
+      "main": [
+        [
+          {
+            "node": "Parse Outline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Outline": {
+      "main": [
+        [
+          {
+            "node": "Status: Outline Done",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Cover Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: Outline Done": {
+      "main": [
+        [
+          {
+            "node": "Flatten All Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten All Scenes": {
+      "main": [
+        [
+          {
+            "node": "Loop Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Scenes": {
+      "main": [
+        [
+          {
+            "node": "Determine Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Status: Writing Scene",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: Writing Scene": {
+      "main": [
+        [
+          {
+            "node": "Heartbeat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Heartbeat": {
+      "main": [
+        [
+          {
+            "node": "Write Scene (GPT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Scene (GPT)": {
+      "main": [
+        [
+          {
+            "node": "Parse Scene",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Scene": {
+      "main": [
+        [
+          {
+            "node": "Send Text Chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Text Chunk": {
+      "main": [
+        [
+          {
+            "node": "Save Scene to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Scene to DB": {
+      "main": [
+        [
+          {
+            "node": "Check Chapter End",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Chapter End": {
+      "main": [
+        [
+          {
+            "node": "If Chapter Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Chapter Done": {
+      "main": [
+        [
+          {
+            "node": "Get Chapter Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Continue Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Chapter Scenes": {
+      "main": [
+        [
+          {
+            "node": "Merge Chapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Chapter": {
+      "main": [
+        [
+          {
+            "node": "Send Chapter Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Chapter Complete": {
+      "main": [
+        [
+          {
+            "node": "Get Book",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Book": {
+      "main": [
+        [
+          {
+            "node": "Update Book Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Book Content": {
+      "main": [
+        [
+          {
+            "node": "Save Book",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Book": {
+      "main": [
+        [
+          {
+            "node": "Continue Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Continue Loop": {
+      "main": [
+        [
+          {
+            "node": "Loop Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Final Status": {
+      "main": [
+        [
+          {
+            "node": "Get Book for Placeholders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Book for Placeholders": {
+      "main": [
+        [
+          {
+            "node": "Create All Chapter Structures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create All Chapter Structures": {
+      "main": [
+        [
+          {
+            "node": "Save All Chapters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save All Chapters": {
+      "main": [
+        [
+          {
+            "node": "Complete Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete Job": {
+      "main": [
+        [
+          {
+            "node": "Complete Book",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete Book": {
+      "main": [
+        [
+          {
+            "node": "Status: Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: Complete": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cover Generation": {
+      "main": [
+        [
+          {
+            "node": "Status: Generating Cover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: Generating Cover": {
+      "main": [
+        [
+          {
+            "node": "Generate Cover (GPT-1.5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Cover (GPT-1.5)": {
+      "main": [
+        [
+          {
+            "node": "Check Cover Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Cover Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Cover Error": {
+      "main": [
+        [
+          {
+            "node": "Handle Cover Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Cover Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Cover Error": {
+      "main": [
+        [
+          {
+            "node": "Cover Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Cover Response": {
+      "main": [
+        [
+          {
+            "node": "Check Has Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Has Image": {
+      "main": [
+        [
+          {
+            "node": "Upload Cover to Storage",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cover Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Cover to Storage": {
+      "main": [
+        [
+          {
+            "node": "Build Cover URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Cover URL": {
+      "main": [
+        [
+          {
+            "node": "Send Cover Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Cover Webhook": {
+      "main": [
+        [
+          {
+            "node": "Save Cover to Book",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Cover to Book": {
+      "main": [
+        [
+          {
+            "node": "Cover Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "headers": {
+          "host": "n8n.beyerdigital.de",
+          "user-agent": "node",
+          "content-length": "1913",
+          "accept": "*/*",
+          "accept-encoding": "gzip, br",
+          "accept-language": "*",
+          "cdn-loop": "cloudflare; loops=1",
+          "cf-connecting-ip": "44.222.248.166",
+          "cf-ipcountry": "US",
+          "cf-ray": "9b5d2ed64f85c950-IAD",
+          "cf-visitor": "{\"scheme\":\"https\"}",
+          "content-type": "application/json",
+          "sec-fetch-mode": "cors",
+          "x-forwarded-for": "172.68.245.133",
+          "x-forwarded-host": "n8n.beyerdigital.de",
+          "x-forwarded-port": "443",
+          "x-forwarded-proto": "https",
+          "x-forwarded-server": "b32537a3ce60",
+          "x-n8n-webhook-secret": "Bookcraft2025vonBeyerdigital!1234321",
+          "x-real-ip": "172.68.245.133",
+          "x-vercel-id": "fra1::jjldp-1767052050222-1974ff3f6c8f"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "jobId": "33b03f25-6757-41a4-a080-2a80cc6e2ca3",
+          "userId": "7a391560-198d-418d-9b44-0cd110221d49",
+          "bookId": "b5eb90ea-c6ad-4497-a056-0429d1a32db7",
+          "config": {
+            "title": "Nice - Hinter der Fassade",
+            "genre": "Psychologischer Thriller",
+            "targetAudience": "Erwachsene und Jugendliche ab 16 Jahren",
+            "description": "In einer Welt, in der das äußere Erscheinungsbild alles bedeutet, entfaltet sich ein düsteres Geheimnis. 'Nice' beleuchtet die Abgründe der menschlichen Psyche und die gefährliche Suche nach Anerkennung und Akzeptanz.",
+            "totalChapters": 2,
+            "writingStyle": "Modern",
+            "tone": "Dunkel",
+            "themes": [
+              "Identität",
+              "Gesellschaftskritik",
+              "Einsamkeit",
+              "Manipulation",
+              "Verborgene Wahrheiten"
+            ],
+            "mainCharacters": [
+              {
+                "name": "Lena Müller",
+                "description": "Eine talentierte Künstlerin, die in der Oberflächenwelt gefangen ist und ihre wahre Identität sucht."
+              },
+              {
+                "name": "Marc Becker",
+                "description": "Ein charismatischer, aber manipulativer Influencer, der Lenas Leben auf den Kopf stellt."
+              },
+              {
+                "name": "Sophie Klein",
+                "description": "Lenas beste Freundin, die zwischen Loyalität und der Wahrheit hin- und hergerissen ist."
+              }
+            ],
+            "setting": "Eine pulsierende Großstadt, in der soziale Medien und äußere Wahrnehmung dominieren.",
+            "plotOutline": "Lena, eine talentierte Künstlerin, wird von Marc, einem erfolgreichen Influencer, in die schillernde Welt der Social-Media-Stars gezogen. Schon bald merkt sie, dass hinter der Fassade der perfekten Bilder dunkle Geheimnisse lauern. Während sie versucht, sich in dieser Welt zurechtzufinden, wird sie mit ihren eigenen Unsicherheiten und der Frage konfrontiert, wer sie wirklich ist. Je tiefer sie gräbt, desto mehr wird sie in ein Netz aus Manipulation und Betrug verwickelt.",
+            "pov": "mixed",
+            "tenseStyle": "present",
+            "language": "de",
+            "bookId": "b5eb90ea-c6ad-4497-a056-0429d1a32db7",
+            "streamText": true,
+            "previewMode": true,
+            "startFromChapter": 1
+          },
+          "callbackUrl": "bookcraft.dev/api/webhooks/n8n/book-status"
+        },
+        "webhookUrl": "https://n8n.beyerdigital.de/webhook/book-live-generation-start",
+        "executionMode": "production"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0ee3cf3aad9fa40e04129d70c068b383c81bcde1ec5199499a1e98de8091fc98"
+  }
+}

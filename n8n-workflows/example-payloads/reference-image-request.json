@@ -1,0 +1,23 @@
+{
+  "comment": "Example webhook payload for picture book generation with reference image",
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "bookId": "123e4567-e89b-12d3-a456-426614174000",
+  "callbackUrl": "https://your-app.com/api/webhooks/n8n/book-status",
+  "config": {
+    "title": "Die magische Reise",
+    "genre": "Fantasy",
+    "description": "Ein Mädchen namens Emma entdeckt eine verborgene magische Welt hinter einer alten Tür im Wald. Gemeinsam mit dem Zauberer Merlin erlebt sie spannende Abenteuer.",
+    "mainCharacters": "Emma (8 Jahre alt, neugierig und mutig), Zauberer Merlin (weise und freundlich)",
+    "setting": "Verzauberter Wald mit magischen Kreaturen und geheimen Pfaden",
+    "targetAudience": "Kinder von 6 bis 10 Jahren",
+    "totalPages": 12,
+    "imageStyle": "Aquarell",
+    "tone": "Fröhlich, abenteuerlich und ein bisschen geheimnisvoll",
+
+    "_comment_referenceImage": "Option 1: Use URL (n8n will fetch the image)",
+    "referenceImageUrl": "https://example.com/my-reference-image.jpg",
+
+    "_comment_referenceImageBase64": "Option 2: Use base64 (recommended for reliability)",
+    "referenceImageBase64": "/9j/4AAQSkZJRgABAQAAAQABAAD..."
+  }
+}

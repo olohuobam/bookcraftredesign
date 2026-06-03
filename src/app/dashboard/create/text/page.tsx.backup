@@ -1,0 +1,640 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
+import { BookOpen, Users, Palette, Settings, MessageSquare, Sparkles, Wand2 } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { useLanguage } from '@/context/LanguageContext'
+import { AppBar } from '@/components/AppBar'
+import PageTransition from '@/components/PageTransition'
+import MultiStepWizard, { Step } from '@/components/MultiStepWizard'
+import { BOOK_LANGUAGES, DEFAULT_BOOK_LANGUAGE, getLanguageDisplay } from '@/types/book-languages'
+import type { BookLanguage } from '@/lib/translations'
+import { useToast } from '@/components/ui/toast'
+
+// Rate limiting cooldown in seconds
+const AI_IMPROVE_COOLDOWN_SECONDS = 5
+// Maximum number of themes allowed
+const MAX_THEMES = 3
+
+interface BookConfig {
+  title: string
+  genre: string
+  targetAudience: string
+  description: string
+  totalChapters: number
+  writingStyle: string
+  tone: string
+  themes: string[]
+  mainCharacters: string
+  setting: string
+  plotOutline: string
+  pov: 'first' | 'third' | 'mixed'
+  tenseStyle: 'past' | 'present' | 'mixed'
+  language?: BookLanguage
+}
+
+const TITLE_MAX_LENGTH = 100
+const DESCRIPTION_MAX_LENGTH = 500
+const CHARACTER_MAX_LENGTH = 200
+const SETTING_MAX_LENGTH = 200
+const PLOT_MAX_LENGTH = 500
+
+export default function CreateTextBookPage() {
+  const router = useRouter()
+  const { getIdToken } = useAuth()
+  const { t, language, isLoading: langLoading } = useLanguage()
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [isAIImproving, setIsAIImproving] = useState(false)
+  const [aiCooldown, setAiCooldown] = useState(0)
+  const { showToast } = useToast()
+  const [selectedBookLanguage, setSelectedBookLanguage] = useState<string>(language || DEFAULT_BOOK_LANGUAGE)
+
+  const [config, setConfig] = useState<BookConfig>({
+    title: '',
+    genre: '',
+    targetAudience: 'Erwachsene',
+    description: '',
+    totalChapters: 10,
+    writingStyle: 'Modern',
+    tone: 'Neutral',
+    themes: [],
+    mainCharacters: '',
+    setting: '',
+    plotOutline: '',
+    pov: 'third',
+    tenseStyle: 'past',
+    language: language as BookLanguage || 'de'
+  })
+
+  // Wait for language to load BEFORE any t() calls
+  if (langLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const updateConfig = (updates: Partial<BookConfig>) => {
+    setConfig(prev => ({ ...prev, ...updates }))
+  }
+
+  const handleAIImproveAll = async () => {
+    // Rate limiting: prevent rapid-fire requests
+    if (aiCooldown > 0) return
+
+    setIsAIImproving(true)
+    try {
+      const token = await getIdToken()
+      if (!token) throw new Error('Not authenticated')
+
+      const response = await fetch('/api/ai/improve-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          bookType: 'text',
+          currentValues: config,
+          language: selectedBookLanguage
+        })
+      })
+
+      if (!response.ok) throw new Error('AI request failed')
+
+      const data = await response.json()
+      if (data.success && data.improvedValues) {
+        const v = data.improvedValues
+        setConfig(prev => ({
+          ...prev,
+          ...(v.title && { title: v.title.substring(0, TITLE_MAX_LENGTH) }),
+          ...(v.genre && { genre: typeof v.genre === 'string' ? v.genre.trim() : v.genre }),
+          ...(v.description && { description: v.description.substring(0, DESCRIPTION_MAX_LENGTH) }),
+          ...(v.mainCharacters && { mainCharacters: v.mainCharacters.substring(0, CHARACTER_MAX_LENGTH) }),
+          ...(v.setting && { setting: v.setting.substring(0, SETTING_MAX_LENGTH) }),
+          ...(v.plotOutline && { plotOutline: v.plotOutline.substring(0, PLOT_MAX_LENGTH) }),
+          ...(v.targetAudience && { targetAudience: typeof v.targetAudience === 'string' ? v.targetAudience.trim() : v.targetAudience }),
+          ...(v.writingStyle && { writingStyle: typeof v.writingStyle === 'string' ? v.writingStyle.trim() : v.writingStyle }),
+          ...(v.tone && { tone: typeof v.tone === 'string' ? v.tone.trim() : v.tone }),
+          // Validate: max 3 themes, trim each value
+          ...(v.themes && Array.isArray(v.themes) && { themes: v.themes.map((t: string) => t.trim()).slice(0, MAX_THEMES) })
+        }))
+      }
+    } catch (error) {
+      console.error('AI Improve All failed:', error)
+      showToast(t('aiImproveError') || 'AI auto-fill failed. Please try again.', 'error')
+    } finally {
+      setIsAIImproving(false)
+      // Start cooldown timer
+      setAiCooldown(AI_IMPROVE_COOLDOWN_SECONDS)
+      const interval = setInterval(() => {
+        setAiCooldown(prev => {
+          if (prev <= 1) { clearInterval(interval); return 0 }
+          return prev - 1
+        })
+      }, 1000)
+    }
+  }
+
+  const validateStep = (stepId: string): boolean | string => {
+    switch (stepId) {
+      case 'title-genre':
+        if (!config.title.trim()) return t('titleRequired') || 'Title is required'
+        if (config.title.length < 3) return t('titleMinLength') || 'Title must be at least 3 characters'
+        if (config.title.length > TITLE_MAX_LENGTH) return `Title must not exceed ${TITLE_MAX_LENGTH} characters`
+        if (!config.genre.trim()) return t('genreRequired') || 'Genre is required'
+        return true
+      
+      case 'chapters-length':
+        if (config.totalChapters < 5 || config.totalChapters > 30) {
+          return 'Number of chapters must be between 5 and 30'
+        }
+        return true
+      
+      case 'style-tone':
+        if (!config.writingStyle) return 'Writing style is required'
+        if (!config.tone) return 'Tone is required'
+        return true
+      
+      default:
+        return true
+    }
+  }
+
+  const handleComplete = async () => {
+    setIsGenerating(true)
+
+    try {
+      const token = await getIdToken()
+      if (!token) {
+        throw new Error(t('notAuthenticated') || 'Not authenticated')
+      }
+
+      const response = await fetch('/api/book/start-live-generation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          config: { 
+            ...config, 
+            language: selectedBookLanguage 
+          } 
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to start generation')
+      }
+
+      const data = await response.json()
+      console.log('✅ Text book generation started:', data)
+
+      // Redirect to live preview
+      router.push(`/dashboard/jobs/${data.jobId}`)
+
+    } catch (error) {
+      console.error('❌ Error starting text book generation:', error)
+      setIsGenerating(false)
+      // Handle error appropriately
+    }
+  }
+
+  const steps: Step[] = [
+    {
+      id: 'title-genre',
+      title: 'Titel & Genre',
+      description: 'Grundlegende Informationen zu deinem Buch',
+      validation: () => validateStep('title-genre'),
+      content: (
+        <div className="space-y-6">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+              <BookOpen className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Titel & Genre</h2>
+            <p className="text-muted-foreground">Erzähle uns von deinem Buchprojekt</p>
+          </div>
+
+          {/* AI Improve All Button */}
+          <button
+            type="button"
+            onClick={handleAIImproveAll}
+            disabled={isAIImproving || aiCooldown > 0}
+            className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-semibold text-base shadow-lg hover:shadow-xl active:scale-[0.98] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isAIImproving ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                {t('aiFillInProgress') || 'KI füllt alle Felder aus...'}
+              </>
+            ) : aiCooldown > 0 ? (
+              <>
+                <Wand2 className="h-5 w-5 opacity-50" />
+                {(t('aiImproveCooldown') || 'Please wait {seconds}s...').replace('{seconds}', String(aiCooldown))}
+              </>
+            ) : (
+              <>
+                <Wand2 className="h-5 w-5" />
+                {t('aiAutoFillAllFields') || '✨ KI: Alle Felder automatisch ausfüllen'}
+              </>
+            )}
+          </button>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="title" className="text-base font-semibold mb-2 block">
+                {t('bookTitleRequired') || 'Buchtitel *'}
+              </Label>
+              <Input
+                id="title"
+                value={config.title}
+                onChange={(e) => updateConfig({ title: e.target.value })}
+                placeholder={t('bookTitlePlaceholder') || 'z.B. Das Geheimnis des alten Waldes'}
+                className="text-lg h-14 rounded-2xl bg-muted/30 border-0 focus:bg-background focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200"
+                maxLength={TITLE_MAX_LENGTH}
+              />
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-muted-foreground">
+                  Mindestens 3 Zeichen
+                </span>
+                <span className={`text-xs ${(config.title?.length || 0) > TITLE_MAX_LENGTH * 0.9 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
+                  {config.title?.length || 0}/{TITLE_MAX_LENGTH}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="genre" className="text-base font-semibold mb-2 block">
+                {t('genreRequired') || 'Genre *'}
+              </Label>
+              <Select value={config.genre} onValueChange={(v) => updateConfig({ genre: v })}>
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/30 border-0 focus:bg-background focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200">
+                  <SelectValue placeholder="Genre auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Fantasy">Fantasy</SelectItem>
+                  <SelectItem value="Science Fiction">Science Fiction</SelectItem>
+                  <SelectItem value="Krimi">Krimi</SelectItem>
+                  <SelectItem value="Romance">Romance</SelectItem>
+                  <SelectItem value="Drama">Drama</SelectItem>
+                  <SelectItem value="Abenteuer">Abenteuer</SelectItem>
+                  <SelectItem value="Kinderbuch">Kinderbuch</SelectItem>
+                  <SelectItem value="Sachbuch">Sachbuch</SelectItem>
+                  <SelectItem value="Horror">Horror</SelectItem>
+                  <SelectItem value="Humor">Humor</SelectItem>
+                  <SelectItem value="Thriller">Thriller</SelectItem>
+                  <SelectItem value="Historisch">Historisch</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="language" className="text-base font-semibold mb-2 block">
+                🌍 {t('bookLanguage') || 'Sprache des Buchs'}
+              </Label>
+              <Select value={selectedBookLanguage} onValueChange={setSelectedBookLanguage}>
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/30 border-0 focus:bg-background focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200">
+                  <SelectValue>
+                    {getLanguageDisplay(selectedBookLanguage)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {BOOK_LANGUAGES.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      <span className="flex items-center gap-2">
+                        <span>{lang.flag}</span>
+                        <span>{lang.nativeName}</span>
+                        <span className="text-muted-foreground text-sm">({lang.name})</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-2">
+                {t('bookLanguageDescription') || 'Die Sprache, in der dein Buch geschrieben wird'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'chapters-length',
+      title: 'Kapitel & Umfang',
+      description: 'Struktur deines Buchs',
+      validation: () => validateStep('chapters-length'),
+      content: (
+        <div className="space-y-6">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-r from-green-500 to-green-600 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+              <Settings className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Kapitel & Umfang</h2>
+            <p className="text-muted-foreground">Bestimme die Struktur deines Buchs</p>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-base font-semibold">
+                  Anzahl Kapitel
+                </Label>
+                <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {config.totalChapters}
+                </span>
+              </div>
+              <Slider
+                value={[config.totalChapters]}
+                onValueChange={(v) => updateConfig({ totalChapters: v[0] })}
+                min={5}
+                max={30}
+                step={1}
+                className="py-4"
+              />
+              <div className="flex justify-between text-sm text-muted-foreground mt-1">
+                <span>5 Kapitel</span>
+                <span>15 Kapitel</span>
+                <span>30 Kapitel</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Ein typisches Buch hat 10-20 Kapitel. Kürzere Kapitel sorgen für mehr Spannung.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="target-audience" className="text-base font-semibold mb-2 block">
+                {t('targetAudience') || 'Zielgruppe'}
+              </Label>
+              <Select value={config.targetAudience} onValueChange={(v) => updateConfig({ targetAudience: v })}>
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/30 border-0 focus:bg-background focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Kinder 6-12">Kinder (6-12 Jahre)</SelectItem>
+                  <SelectItem value="Jugendliche 13-17">Jugendliche (13-17 Jahre)</SelectItem>
+                  <SelectItem value="Junge Erwachsene">Junge Erwachsene (18-25)</SelectItem>
+                  <SelectItem value="Erwachsene">Erwachsene (25+)</SelectItem>
+                  <SelectItem value="Alle Altersgruppen">Alle Altersgruppen</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="pov" className="text-base font-semibold mb-2 block">
+                  Erzählperspektive
+                </Label>
+                <Select value={config.pov} onValueChange={(v: 'first' | 'third' | 'mixed') => updateConfig({ pov: v })}>
+                  <SelectTrigger className="h-14 rounded-2xl bg-muted/30 border-0 focus:bg-background focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="first">Ich-Erzähler</SelectItem>
+                    <SelectItem value="third">Er/Sie-Erzähler</SelectItem>
+                    <SelectItem value="mixed">Gemischt</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="tense" className="text-base font-semibold mb-2 block">
+                  Zeitform
+                </Label>
+                <Select value={config.tenseStyle} onValueChange={(v: 'past' | 'present' | 'mixed') => updateConfig({ tenseStyle: v })}>
+                  <SelectTrigger className="h-14 rounded-2xl bg-muted/30 border-0 focus:bg-background focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="past">Vergangenheit</SelectItem>
+                    <SelectItem value="present">Gegenwart</SelectItem>
+                    <SelectItem value="mixed">Gemischt</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'style-tone',
+      title: 'Stil & Ton',
+      description: 'Wie soll dein Buch klingen?',
+      validation: () => validateStep('style-tone'),
+      content: (
+        <div className="space-y-6">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-r from-pink-500 to-pink-600 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+              <Palette className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Stil & Ton</h2>
+            <p className="text-muted-foreground">Verleihe deinem Buch eine einzigartige Stimme</p>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <Label htmlFor="writing-style" className="text-base font-semibold mb-3 block">
+                Schreibstil
+              </Label>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { value: 'Modern', label: 'Modern & Zeitgenössisch', desc: 'Aktuell, direkt, eingängig' },
+                  { value: 'Klassisch', label: 'Klassisch & Literarisch', desc: 'Elegant, ausführlich, tiefgehend' },
+                  { value: 'Poetisch', label: 'Poetisch & Bildreich', desc: 'Metaphorisch, stimmungsvoll' },
+                  { value: 'Humorvoll', label: 'Humorvoll & Leicht', desc: 'Witzig, unterhaltsam, locker' }
+                ].map(({ value, label, desc }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => updateConfig({ writingStyle: value })}
+                    className={`p-4 rounded-xl border-2 transition-all text-left min-h-[80px] active:scale-95 ios-spring ${
+                      config.writingStyle === value
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 shadow-md'
+                        : 'border-border hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm'
+                    }`}
+                  >
+                    <div className="font-semibold text-foreground mb-1 text-sm">{label}</div>
+                    <div className="text-xs text-muted-foreground">{desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="tone" className="text-base font-semibold mb-2 block">
+                Grundton
+              </Label>
+              <Select value={config.tone} onValueChange={(v) => updateConfig({ tone: v })}>
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/30 border-0 focus:bg-background focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Fröhlich">Fröhlich & Optimistisch</SelectItem>
+                  <SelectItem value="Spannend">Spannend & Aufregend</SelectItem>
+                  <SelectItem value="Nachdenklich">Nachdenklich & Tiefgründig</SelectItem>
+                  <SelectItem value="Mysteriös">Mysteriös & Geheimnisvoll</SelectItem>
+                  <SelectItem value="Romantisch">Romantisch & Emotional</SelectItem>
+                  <SelectItem value="Neutral">Neutral & Ausgewogen</SelectItem>
+                  <SelectItem value="Düster">Düster & Intensiv</SelectItem>
+                  <SelectItem value="Inspirierend">Inspirierend & Motivierend</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="description" className="text-base font-semibold mb-2 block">
+                Beschreibung (Optional)
+              </Label>
+              <Textarea
+                id="description"
+                value={config.description}
+                onChange={(e) => updateConfig({ description: e.target.value })}
+                placeholder="Worum soll es in deinem Buch gehen? Je detaillierter, desto besser kann die KI arbeiten..."
+                rows={4}
+                className="resize-none rounded-2xl bg-muted/30 border-0 focus:bg-background focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200 leading-relaxed"
+                maxLength={DESCRIPTION_MAX_LENGTH}
+              />
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-muted-foreground">
+                  Optional, aber hilfreich für bessere Ergebnisse
+                </span>
+                <span className={`text-xs ${(config.description?.length || 0) > DESCRIPTION_MAX_LENGTH * 0.9 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
+                  {config.description?.length || 0}/{DESCRIPTION_MAX_LENGTH}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'summary',
+      title: 'Zusammenfassung & Start',
+      description: 'Überprüfe deine Einstellungen',
+      content: (
+        <div className="space-y-6">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+              <Sparkles className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Zusammenfassung</h2>
+            <p className="text-muted-foreground">Bereit für die Live-Generierung?</p>
+          </div>
+
+          <div className="bg-gradient-to-br from-blue-50/80 via-sky-50/60 to-blue-100/80 dark:from-blue-950/40 dark:via-blue-900/30 dark:to-blue-950/50 rounded-3xl border border-blue-200/50 dark:border-blue-800/30 p-6 shadow-lg dark:shadow-black/20 backdrop-blur-sm">
+            <h3 className="font-bold text-blue-900 dark:text-blue-100 mb-4 text-lg">📚 Dein Buchprojekt</h3>
+            
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-blue-800 dark:text-blue-200 font-medium">Titel:</span>
+                <span className="text-blue-900 dark:text-blue-100 font-bold">"{config.title}"</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-blue-800 dark:text-blue-200 font-medium">Genre:</span>
+                <span className="text-blue-900 dark:text-blue-100">{config.genre}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-blue-800 dark:text-blue-200 font-medium">Kapitel:</span>
+                <span className="text-blue-900 dark:text-blue-100">{config.totalChapters} Kapitel</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-blue-800 dark:text-blue-200 font-medium">Stil:</span>
+                <span className="text-blue-900 dark:text-blue-100">{config.writingStyle}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-blue-800 dark:text-blue-200 font-medium">Ton:</span>
+                <span className="text-blue-900 dark:text-blue-100">{config.tone}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-blue-800 dark:text-blue-200 font-medium">Sprache:</span>
+                <span className="text-blue-900 dark:text-blue-100">{getLanguageDisplay(selectedBookLanguage)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-blue-800 dark:text-blue-200 font-medium">Zielgruppe:</span>
+                <span className="text-blue-900 dark:text-blue-100">{config.targetAudience}</span>
+              </div>
+            </div>
+
+            {config.description && (
+              <div className="mt-4 pt-4 border-t border-blue-200/50 dark:border-blue-800/50">
+                <span className="text-blue-800 dark:text-blue-200 font-medium text-sm">Beschreibung:</span>
+                <p className="text-blue-900 dark:text-blue-100 text-sm mt-1 leading-relaxed">{config.description}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <Wand2 className="h-6 w-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                  Live-Generierung startet
+                </h3>
+                <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                  Dein Buch wird in Echtzeit vor deinen Augen geschrieben. Du kannst den Prozess live verfolgen und jederzeit eingreifen oder Änderungen vornehmen.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+  ]
+
+  return (
+    <PageTransition direction="up">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 dark:from-slate-950 dark:via-blue-950 dark:to-slate-950 pb-32 lg:pb-8">
+        {/* Mobile App Bar */}
+        <div className="lg:hidden">
+          <AppBar
+            title="KI Text-Buch erstellen"
+            subtitle="Schritt für Schritt zum fertigen Buch"
+            showBack
+            onBack={() => router.push('/dashboard/create')}
+          />
+        </div>
+
+        {/* Desktop Header */}
+        <div className="hidden lg:block bg-card border-b border-border px-6 py-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl flex items-center justify-center shadow-sm">
+              <BookOpen className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">KI Text-Buch erstellen</h1>
+              <p className="text-sm text-muted-foreground mt-1">Schritt für Schritt zum fertigen Buch</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
+          <MultiStepWizard
+            steps={steps}
+            onComplete={handleComplete}
+            backButton={{
+              text: 'Zurück',
+              onClick: () => router.push('/dashboard/create')
+            }}
+            nextButton={{ text: 'Weiter' }}
+            finishButton={{
+              text: 'Buch erstellen',
+              loading: isGenerating
+            }}
+            showProgress={true}
+            progressStyle="steps"
+          />
+        </div>
+      </div>
+    </PageTransition>
+  )
+}
