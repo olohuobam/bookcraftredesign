@@ -207,7 +207,7 @@ function StarfieldCanvas() {
     type Star = { x: number; y: number; r: number; o: number; s: number; ph: number }
     let stars: Star[] = []
     function init() {
-      W = c.width = window.innerWidth; H = c.height = window.innerHeight
+      W = c!.width = window.innerWidth; H = c!.height = window.innerHeight
       stars = Array.from({ length: 150 }, () => ({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.1 + 0.15, o: Math.random() * 0.2 + 0.04, s: Math.random() * 0.4 + 0.15, ph: Math.random() * Math.PI * 2 }))
     }
     let t0 = 0
