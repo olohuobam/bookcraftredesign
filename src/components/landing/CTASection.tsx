@@ -110,7 +110,7 @@ export default function CTASection() {
                 onClick={requestAuthModal}
                 whileTap={{ scale: 0.97 }}
                 className="group relative overflow-hidden inline-flex items-center justify-center gap-2 px-10 py-4 rounded-full font-bold text-base"
-                style={{ background: '#fff', color: '#1a0a40', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+               
               >
                 <motion.span
                   style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg,transparent,rgba(99,102,241,0.15),transparent)' }}
